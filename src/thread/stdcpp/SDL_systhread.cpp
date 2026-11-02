@@ -36,7 +36,10 @@ extern "C" {
 
 static void RunThread(void *args)
 {
-    SDL_RunThread((SDL_Thread *)args);
+    SDL_Thread *thread = (SDL_Thread *)args;
+    // Set on the new thread so it is valid before user code runs, without racing the creator.
+    thread->threadid = SDL_GetCurrentThreadID();
+    SDL_RunThread(thread);
 }
 
 extern "C"

@@ -569,7 +569,10 @@ static HRESULT D3D11_CreateDeviceResources(SDL_Renderer *renderer)
      */
     D3D_FEATURE_LEVEL featureLevels[] = {
         D3D_FEATURE_LEVEL_11_1,
-        D3D_FEATURE_LEVEL_11_0
+        D3D_FEATURE_LEVEL_11_0,
+        // Xbox One gives UWP titles feature level 10; the basic shaders target level 9_1.
+        D3D_FEATURE_LEVEL_10_1,
+        D3D_FEATURE_LEVEL_10_0
     };
 
     D3D11_BUFFER_DESC constantBufferDesc;
@@ -2329,7 +2332,8 @@ static void D3D11_SetupShaderConstants(SDL_Renderer *renderer, const SDL_RenderC
             constants->input_type = INPUTTYPE_HDR10;
             break;
         default:
-            if (cmd->data.draw.texture_scale_mode == SDL_SCALEMODE_PIXELART) {
+            if (cmd->data.draw.texture_scale_mode == SDL_SCALEMODE_PIXELART &&
+                ((D3D11_RenderData *)renderer->internal)->featureLevel >= D3D_FEATURE_LEVEL_11_0) {
                 constants->texture_type = TEXTURETYPE_RGB_PIXELART;
             } else {
                 constants->texture_type = TEXTURETYPE_RGB;
@@ -2557,6 +2561,10 @@ static ID3D11SamplerState *D3D11_GetSamplerState(D3D11_RenderData *data, SDL_Pix
 {
     if (format == SDL_PIXELFORMAT_INDEX8) {
         // We'll do linear sampling in the shader if needed
+        scale_mode = SDL_SCALEMODE_NEAREST;
+    }
+    if (scale_mode == SDL_SCALEMODE_PIXELART && data->featureLevel < D3D_FEATURE_LEVEL_11_0) {
+        // The pixel art filter lives in the ps_5_0 shader; below 11_0 it is plain point sampling.
         scale_mode = SDL_SCALEMODE_NEAREST;
     }
 

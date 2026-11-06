@@ -1,0 +1,46 @@
+# Publishes the Windows Store build of SDL3 as a release asset so that
+# consumers can link against it without MSVC. The C++/CX sources (/ZW)
+# compile only with MSVC.
+
+name: uwp-prefix
+
+on:
+  push:
+    branches: [xbox-one-d3d11-fl10]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prefix:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 \
+            -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0
+          cmake --build build --config Release --parallel
+          cmake --install build --config Release --prefix prefix
+          test -f prefix/bin/SDL3.dll
+          test -f prefix/lib/SDL3.lib
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="prefix-${GITHUB_SHA::9}"
+          zip="sdl3-uwp-x64-${GITHUB_SHA::9}.zip"
+          (cd prefix && 7z a -tzip "../$zip" .)
+          sha256sum "$zip" | tee "$zip.sha256"
+          gh release view "$tag" >/dev/null 2>&1 ||
+            gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" \
+              --notes "Windows Store x64 SDL3 install prefix built from $GITHUB_SHA."
+          gh release upload "$tag" "$zip" "$zip.sha256" --clobber
